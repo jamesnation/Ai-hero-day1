@@ -43,4 +43,4 @@ Message annotations are cool because they let you stream in metadata about the m
 
 To persist them, you just save the most up-to-date ones in memory when you save the final message. Then, they'll be hydrated when you load the message back into the AI SDK.
 
----
+
