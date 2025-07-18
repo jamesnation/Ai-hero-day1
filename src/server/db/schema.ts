@@ -112,6 +112,16 @@ export const verificationTokens = createTable(
   }),
 );
 
+export const userRequests = createTable("user_request", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 255 })
+    .notNull()
+    .references(() => users.id),
+  requestedAt: timestamp("requested_at", { withTimezone: true, mode: "date" })
+    .notNull()
+    .default(sql`CURRENT_TIMESTAMP`),
+});
+
 export declare namespace DB {
   export type User = InferSelectModel<typeof users>;
   export type NewUser = InferInsertModel<typeof users>;
