@@ -7,14 +7,16 @@ import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { isNewChatCreated } from "~/utils";
+import type { Message } from "ai";
 
 interface ChatProps {
   userName: string;
   isAuthenticated: boolean;
   chatId?: string;
+  initialMessages?: Message[];
 }
 
-export const ChatPage = ({ userName, isAuthenticated, chatId }: ChatProps) => {
+export const ChatPage = ({ userName, isAuthenticated, chatId, initialMessages }: ChatProps) => {
   const {
     messages,
     input,
@@ -24,6 +26,7 @@ export const ChatPage = ({ userName, isAuthenticated, chatId }: ChatProps) => {
     data,
   } = useChat({
     body: { chatId },
+    initialMessages,
   });
 
   const router = useRouter();
