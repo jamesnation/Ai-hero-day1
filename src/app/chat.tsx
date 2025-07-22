@@ -5,26 +5,40 @@ import { SignInModal } from "~/components/sign-in-modal";
 import { useChat } from "@ai-sdk/react";
 import { Loader2 } from "lucide-react";
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { isNewChatCreated } from "~/utils";
 
 interface ChatProps {
   userName: string;
   isAuthenticated: boolean;
+  chatId?: string;
 }
 
-export const ChatPage = ({ userName, isAuthenticated }: ChatProps) => {
+export const ChatPage = ({ userName, isAuthenticated, chatId }: ChatProps) => {
   const {
     messages,
     input,
     handleInputChange,
     handleSubmit,
     isLoading,
-  } = useChat();
+    data,
+  } = useChat({
+    body: { chatId },
+  });
 
+  const router = useRouter();
   const [showSignInModal, setShowSignInModal] = useState(false);
 
   useEffect(() => {
     console.log("All chat messages:", messages);
   }, [messages]);
+
+  useEffect(() => {
+    const lastDataItem = data?.[data.length - 1];
+    if (isNewChatCreated(lastDataItem)) {
+      router.push(`?id=${lastDataItem.chatId}`);
+    }
+  }, [data, router]);
 
   const handleFormSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();

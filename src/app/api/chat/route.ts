@@ -133,6 +133,13 @@ export async function POST(request: Request) {
         },
       });
       result.mergeIntoDataStream(dataStream);
+      if (!chatId) {
+        // After creating the new chat, stream the new chatId to the frontend
+        dataStream.writeData({
+          type: "NEW_CHAT_CREATED",
+          chatId: currentChatId!,
+        });
+      }
     },
     onError: (e) => {
       console.error(e);
