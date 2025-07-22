@@ -65,16 +65,16 @@ export async function POST(request: Request) {
 
   const body = (await request.json()) as {
     messages: Array<Message>;
-    chatId?: string;
+    chatId: string;
+    isNewChat: boolean;
   };
 
-  let { messages, chatId } = body;
+  let { messages, chatId, isNewChat } = body;
   let currentChatId = chatId;
   let createdNewChat = false;
 
-  // If no chatId, create a new chat in the DB with the user's message
-  if (!currentChatId) {
-    currentChatId = crypto.randomUUID();
+  // If isNewChat, create a new chat in the DB with the user's message
+  if (isNewChat) {
     createdNewChat = true;
     await upsertChat({
       userId,

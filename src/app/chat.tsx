@@ -14,9 +14,10 @@ interface ChatProps {
   isAuthenticated: boolean;
   chatId?: string;
   initialMessages?: Message[];
+  isNewChat: boolean; // Added isNewChat prop
 }
 
-export const ChatPage = ({ userName, isAuthenticated, chatId, initialMessages }: ChatProps) => {
+export const ChatPage = ({ userName, isAuthenticated, chatId, initialMessages, isNewChat }: ChatProps) => {
   const {
     messages,
     input,
@@ -25,7 +26,7 @@ export const ChatPage = ({ userName, isAuthenticated, chatId, initialMessages }:
     isLoading,
     data,
   } = useChat({
-    body: { chatId },
+    body: { chatId, isNewChat }, // Pass isNewChat to useChat
     initialMessages,
   });
 

@@ -5,6 +5,7 @@ import { ChatPage } from "./chat.tsx";
 import { AuthButton } from "../components/auth-button.tsx";
 import { getChats, getChat } from "../server/db/queries";
 import type { Message } from "ai";
+import { randomUUID } from "crypto";
 
 export default async function HomePage({
   searchParams,
@@ -14,16 +15,18 @@ export default async function HomePage({
   const session = await auth();
   const userName = session?.user?.name ?? "Guest";
   const isAuthenticated = !!session?.user;
-  const { id } = await searchParams;
+  const { id: chatIdFromUrl } = await searchParams;
+  const chatId = chatIdFromUrl ?? randomUUID();
+  const isNewChat = !chatIdFromUrl;
 
   let chats: any[] = [];
   let initialMessages: Message[] = [];
-  let activeChatId = id;
+  let activeChatId = chatIdFromUrl;
 
   if (isAuthenticated && session.user.id) {
     chats = await getChats({ userId: session.user.id });
-    if (id) {
-      const dbChat = await getChat({ userId: session.user.id, chatId: id });
+    if (chatIdFromUrl) {
+      const dbChat = await getChat({ userId: session.user.id, chatId: chatIdFromUrl });
       initialMessages = dbChat?.messages?.map((msg) => ({
         id: msg.id,
         role: msg.role as "user" | "assistant",
@@ -83,7 +86,14 @@ export default async function HomePage({
         </div>
       </div>
 
-      <ChatPage userName={userName} isAuthenticated={isAuthenticated} chatId={id} initialMessages={initialMessages} />
+      <ChatPage
+        key={chatId}
+        userName={userName}
+        isAuthenticated={isAuthenticated}
+        chatId={chatId}
+        isNewChat={isNewChat}
+        initialMessages={initialMessages}
+      />
     </div>
   );
 }
