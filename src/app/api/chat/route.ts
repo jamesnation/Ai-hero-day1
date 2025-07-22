@@ -2,18 +2,29 @@ import type { Message } from "ai";
 import {
   streamText,
   createDataStreamResponse,
+  appendResponseMessages,
 } from "ai";
 import { model } from "../../../models";
 import { auth } from "../../../server/auth/index.ts";
 import { searchSerper } from "../../../serper";
 import { z } from "zod";
-// --- Added imports for rate limiting ---
 import { db } from "../../../server/db/index";
 import { userRequests, users } from "../../../server/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
+import { upsertChat } from "../../../server/db/queries";
 
 export const maxDuration = 60;
+
+function generateChatTitle(messages: Message[]): string {
+  // Use the first user message as the title, truncated to 50 chars
+  const firstUserMsg = messages.find((m) => m.role === "user");
+  if (!firstUserMsg) return "New Chat";
+  const text = Array.isArray(firstUserMsg.content)
+    ? firstUserMsg.content.join(" ")
+    : String(firstUserMsg.content);
+  return text.slice(0, 50) || "New Chat";
+}
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -26,17 +37,12 @@ export async function POST(request: Request) {
 
   // --- Rate limiting logic ---
   const userId = session.user.id;
-  // Fetch user from DB to get isAdmin status
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   const isAdmin = user?.isAdmin ?? false;
   const DAILY_LIMIT = 50;
-
-  // Get start and end of today (UTC)
   const now = new Date();
   const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0));
   const endOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
-
-  // Count requests made today
   const countResult = await db
     .select({ count: sql`count(*)::int` })
     .from(userRequests)
@@ -47,28 +53,43 @@ export async function POST(request: Request) {
         lte(userRequests.requestedAt, endOfDay)
       )
     );
-  // Safely extract count, defaulting to 0 if undefined or not a number
   const count = typeof countResult?.[0]?.count === "number" ? countResult[0].count : 0;
-
   if (!isAdmin && count >= DAILY_LIMIT) {
     return new Response(JSON.stringify({ error: "Too many requests. Please try again tomorrow." }), {
       status: 429,
       headers: { "Content-Type": "application/json" },
     });
   }
-
-  // Record the new request
   await db.insert(userRequests).values({ userId });
   // --- End rate limiting logic ---
 
   const body = (await request.json()) as {
     messages: Array<Message>;
+    chatId?: string;
   };
+
+  let { messages, chatId } = body;
+  let currentChatId = chatId;
+  let createdNewChat = false;
+
+  // If no chatId, create a new chat in the DB with the user's message
+  if (!currentChatId) {
+    currentChatId = crypto.randomUUID();
+    createdNewChat = true;
+    await upsertChat({
+      userId,
+      chatId: currentChatId,
+      title: generateChatTitle(messages),
+      messages: messages.map((msg) => ({
+        ...msg,
+        parts: Array.isArray(msg.parts) ? msg.parts : [],
+        content: msg.content,
+      })),
+    });
+  }
 
   return createDataStreamResponse({
     execute: async (dataStream) => {
-      const { messages } = body;
-
       const result = streamText({
         model,
         messages,
@@ -92,8 +113,25 @@ export async function POST(request: Request) {
         },
         system: `You are an AI assistant with access to a web search tool. For any question that requires up-to-date or factual information, always use the searchWeb tool to find answers. Always cite your sources with inline markdown links (e.g., [source](url)) in your responses. If you use information from a search result, include the link to the source in your answer.`,
         maxSteps: 10,
+        // Save the chat and messages after the stream finishes
+        async onFinish({ response }) {
+          const responseMessages = response.messages;
+          const updatedMessages = appendResponseMessages({
+            messages,
+            responseMessages,
+          });
+          await upsertChat({
+            userId,
+            chatId: currentChatId!,
+            title: generateChatTitle(updatedMessages),
+            messages: updatedMessages.map((msg) => ({
+              ...msg,
+              parts: Array.isArray(msg.parts) ? msg.parts : [],
+              content: msg.content,
+            })),
+          });
+        },
       });
-
       result.mergeIntoDataStream(dataStream);
     },
     onError: (e) => {
