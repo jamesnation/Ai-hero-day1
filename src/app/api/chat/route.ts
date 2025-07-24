@@ -93,6 +93,7 @@ export async function POST(request: Request) {
       const result = streamText({
         model,
         messages,
+        experimental_telemetry: { isEnabled: true },
         tools: {
           searchWeb: {
             parameters: z.object({
