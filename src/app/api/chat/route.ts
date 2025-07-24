@@ -13,6 +13,8 @@ import { userRequests, users } from "../../../server/db/schema";
 import { eq, and, gte, lte } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { upsertChat } from "../../../server/db/queries";
+import { Langfuse } from "langfuse";
+import { env } from "~/env";
 
 export const maxDuration = 60;
 
@@ -88,12 +90,29 @@ export async function POST(request: Request) {
     });
   }
 
+  // --- Langfuse integration ---
+  const langfuse = new Langfuse({
+    environment: env.NODE_ENV,
+  });
+  const trace = langfuse.trace({
+    sessionId: currentChatId,
+    name: "chat",
+    userId: userId,
+  });
+  // --- End Langfuse integration ---
+
   return createDataStreamResponse({
     execute: async (dataStream) => {
       const result = streamText({
         model,
         messages,
-        experimental_telemetry: { isEnabled: true },
+        experimental_telemetry: {
+          isEnabled: true,
+          functionId: `agent`,
+          metadata: {
+            langfuseTraceId: trace.id,
+          },
+        },
         tools: {
           searchWeb: {
             parameters: z.object({
@@ -131,6 +150,9 @@ export async function POST(request: Request) {
               content: msg.content,
             })),
           });
+          // --- Langfuse flush ---
+          await langfuse.flushAsync();
+          // --- End Langfuse flush ---
         },
       });
       result.mergeIntoDataStream(dataStream);
