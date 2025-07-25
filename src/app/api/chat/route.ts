@@ -15,6 +15,7 @@ import { sql } from "drizzle-orm";
 import { upsertChat } from "../../../server/db/queries";
 import { Langfuse } from "langfuse";
 import { env } from "~/env";
+import { bulkCrawlWebsites } from "../../../server/scraper";
 
 export const maxDuration = 60;
 
@@ -103,6 +104,8 @@ export async function POST(request: Request) {
 
   return createDataStreamResponse({
     execute: async (dataStream) => {
+      const now = new Date();
+      const currentDateTime = now.toISOString().replace("T", " ").slice(0, 16) + " UTC";
       const result = streamText({
         model,
         messages,
@@ -127,11 +130,47 @@ export async function POST(request: Request) {
                 title: result.title,
                 link: result.link,
                 snippet: result.snippet,
+                date: result.date || null, // Add date if available
               }));
             },
           },
+          scrapePages: {
+            parameters: z.object({
+              urls: z.array(z.string()).describe("A list of URLs to scrape for full page content."),
+            }),
+            execute: async ({ urls }) => {
+              // Manual URL validation
+              const validUrls = urls.filter((u: string) => {
+                try {
+                  new URL(u);
+                  return true;
+                } catch {
+                  return false;
+                }
+              });
+              if (validUrls.length !== urls.length) {
+                return {
+                  success: false,
+                  error: `One or more provided URLs are invalid. Only valid URLs will be scraped.`,
+                  results: validUrls.map((url: string) => ({ url, result: { success: false, error: "Invalid URL" } })),
+                };
+              }
+              const result = await bulkCrawlWebsites({ urls: validUrls });
+              return result;
+            },
+          },
         },
-        system: `You are an AI assistant with access to a web search tool. For any question that requires up-to-date or factual information, always use the searchWeb tool to find answers. Always cite your sources with inline markdown links (e.g., [source](url)) in your responses. If you use information from a search result, include the link to the source in your answer.`,
+        system: [
+          `The current date and time is: ${currentDateTime}. Use this information to interpret queries about 'today', 'now', or 'recent' events. When a user asks for up-to-date information, always use the current date to interpret their request and prefer the most recent sources.`,
+          "You are an AI assistant with access to real-time web data through two powerful tools:",
+          "",
+          "- searchWeb: Use this tool to search the web for up-to-date or factual information. Always cite your sources with inline markdown links (e.g., [source](url)) in your responses.",
+          "- scrapePages: Always use this tool to extract the full text content of web pages, not just snippets. For any query that requires information from the web, you must use the scrapePages tool. When answering, scrape four to six URLs per query, choosing a diverse set of reputable and relevant sources. This tool will return the main content of each page in markdown format, or an error if the page cannot be crawled.",
+          "",
+          "If you use information from a search result or a scraped page, always include the link to the source in your answer.",
+          "",
+          "You are an advanced AI assistant with access to real-time web data. Your answers should be as accurate, current, and well-sourced as possible.",
+        ].join("\n"),
         maxSteps: 10,
         // Save the chat and messages after the stream finishes
         async onFinish({ response }) {
