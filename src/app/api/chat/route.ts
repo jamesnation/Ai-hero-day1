@@ -16,6 +16,7 @@ import { upsertChat } from "../../../server/db/queries";
 import { Langfuse } from "langfuse";
 import { env } from "~/env";
 import { bulkCrawlWebsites } from "../../../server/scraper";
+import { checkRateLimit, recordRateLimit } from "../../../server/redis/rate-limit";
 
 export const maxDuration = 60;
 
@@ -38,7 +39,32 @@ export async function POST(request: Request) {
     });
   }
 
-  // --- Rate limiting logic ---
+  // --- Global rate limiting logic ---
+  // This rate limit applies to ALL requests, not just per user.
+  // For testing, allow only 1 request per 5 seconds globally.
+  const globalRateLimitConfig = {
+    maxRequests: 1,
+    windowMs: 5000, // 5 seconds
+    keyPrefix: "global_llm",
+    maxRetries: 3,
+  };
+  // Check the global rate limit before any expensive operations
+  const globalRate = await checkRateLimit(globalRateLimitConfig);
+  if (!globalRate.allowed) {
+    // If not allowed, wait for the window to reset (retry)
+    const isAllowed = await globalRate.retry();
+    if (!isAllowed) {
+      return new Response(JSON.stringify({ error: "Global rate limit exceeded. Please try again soon." }), {
+        status: 429,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+  }
+  // Record the global request (increment the counter)
+  await recordRateLimit(globalRateLimitConfig);
+  // --- End global rate limiting logic ---
+
+  // --- Per-user daily rate limiting logic ---
   const userId = session.user.id;
   const [user] = await db.select().from(users).where(eq(users.id, userId));
   const isAdmin = user?.isAdmin ?? false;
@@ -64,7 +90,7 @@ export async function POST(request: Request) {
     });
   }
   await db.insert(userRequests).values({ userId });
-  // --- End rate limiting logic ---
+  // --- End per-user daily rate limiting logic ---
 
   const body = (await request.json()) as {
     messages: Array<Message>;
