@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server";
+import { type NextRequest } from "next/server";
 import { db } from "../../../../server/db/index";
 import { chats } from "../../../../server/db/schema";
 import { eq } from "drizzle-orm";

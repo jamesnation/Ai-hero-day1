@@ -20,7 +20,7 @@ export default async function HomePage({
 
   let chats: any[] = [];
   let initialMessages: Message[] = [];
-  let activeChatId = chatIdFromUrl;
+  const activeChatId = chatIdFromUrl;
 
   if (isAuthenticated && session.user.id) {
     chats = await getChats({ userId: session.user.id });

@@ -98,8 +98,8 @@ export async function POST(request: Request) {
     isNewChat: boolean;
   };
 
-  let { messages, chatId, isNewChat } = body;
-  let currentChatId = chatId;
+  const { messages, chatId, isNewChat } = body;
+  const currentChatId = chatId;
   let createdNewChat = false;
 
   // If isNewChat, create a new chat in the DB with the user's message
@@ -207,7 +207,7 @@ export async function POST(request: Request) {
           });
           await upsertChat({
             userId,
-            chatId: currentChatId!,
+            chatId: currentChatId,
             title: generateChatTitle(updatedMessages),
             messages: updatedMessages.map((msg) => ({
               ...msg,
@@ -225,7 +225,7 @@ export async function POST(request: Request) {
         // After creating the new chat, stream the new chatId to the frontend
         dataStream.writeData({
           type: "NEW_CHAT_CREATED",
-          chatId: currentChatId!,
+          chatId: currentChatId,
         });
       }
     },
