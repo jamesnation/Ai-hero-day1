@@ -149,7 +149,7 @@ export async function POST(request: Request) {
             }),
             execute: async ({ query }, { abortSignal }) => {
               const results = await searchSerper(
-                { q: query, num: 10 },
+                { q: query, num: env.SEARCH_RESULTS_COUNT },
                 abortSignal,
               );
               return results.organic.map((result) => ({

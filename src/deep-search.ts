@@ -8,6 +8,7 @@ import { model } from "./models";
 import { searchSerper } from "./serper";
 import { z } from "zod";
 import { bulkCrawlWebsites } from "./server/scraper";
+import { env } from "./env";
 
 // System prompt and tools copied from the API route
 function getSystemPrompt(currentDateTime: string) {
@@ -34,7 +35,7 @@ const tools = {
       options?: ToolExecutionOptions
     ) => {
       const results = await searchSerper(
-        { q: query, num: 10 },
+        { q: query, num: env.SEARCH_RESULTS_COUNT },
         options?.abortSignal,
       );
       return results.organic.map((result) => ({
