@@ -13,6 +13,7 @@ import { Langfuse } from "langfuse";
 import { env } from "~/env";
 import { checkRateLimit, recordRateLimit } from "../../../server/redis/rate-limit";
 import { streamFromDeepSearch } from "../../../deep-search";
+import type { OurMessageAnnotation } from "../../../types";
 
 export const maxDuration = 60;
 
@@ -155,6 +156,9 @@ export async function POST(request: Request) {
           metadata: {
             langfuseTraceId: trace.id,
           },
+        },
+        writeMessageAnnotation: (annotation: OurMessageAnnotation) => {
+          dataStream.writeMessageAnnotation(annotation);
         },
       });
       

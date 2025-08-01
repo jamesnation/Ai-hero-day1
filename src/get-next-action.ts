@@ -9,6 +9,8 @@ import type { SystemContext } from "./system-context";
 export interface SearchAction {
   type: "search";
   query: string;
+  title: string;
+  reasoning: string;
 }
 
 /**
@@ -17,6 +19,8 @@ export interface SearchAction {
 export interface ScrapeAction {
   type: "scrape";
   urls: string[];
+  title: string;
+  reasoning: string;
 }
 
 /**
@@ -24,6 +28,8 @@ export interface ScrapeAction {
  */
 export interface AnswerAction {
   type: "answer";
+  title: string;
+  reasoning: string;
 }
 
 /**
@@ -44,6 +50,14 @@ export const actionSchema = z.object({
       - 'scrape': Scrape a URL.
       - 'answer': Answer the user's question and complete the loop.`,
     ),
+  title: z
+    .string()
+    .describe(
+      "The title of the action, to be displayed in the UI. Be extremely concise. 'Searching Saka's injury history', 'Checking HMRC industrial action', 'Comparing toaster ovens'",
+    ),
+  reasoning: z
+    .string()
+    .describe("The reason you chose this step."),
   query: z
     .string()
     .describe(
@@ -105,16 +119,30 @@ Choose the most appropriate action and provide the required parameters.
       if (!action.query) {
         throw new Error("Search action requires a query parameter");
       }
-      return { type: "search", query: action.query };
+      return { 
+        type: "search", 
+        query: action.query,
+        title: action.title,
+        reasoning: action.reasoning
+      };
     
     case "scrape":
       if (!action.urls || action.urls.length === 0) {
         throw new Error("Scrape action requires at least one URL");
       }
-      return { type: "scrape", urls: action.urls };
+      return { 
+        type: "scrape", 
+        urls: action.urls,
+        title: action.title,
+        reasoning: action.reasoning
+      };
     
     case "answer":
-      return { type: "answer" };
+      return { 
+        type: "answer",
+        title: action.title,
+        reasoning: action.reasoning
+      };
     
     default:
       throw new Error(`Invalid action type: ${(action as any).type}`);

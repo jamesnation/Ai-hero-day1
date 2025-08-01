@@ -8,17 +8,19 @@ import { model } from "./models";
 import { runAgentLoop } from "./run-agent-loop";
 import { answerQuestion } from "./answer-question";
 import { SystemContext } from "./system-context";
+import type { OurMessageAnnotation } from "./types";
 
 /**
  * Streams the result of a deep search using the new agent loop system
  * 
- * @param opts - Options including messages, onFinish callback, and telemetry settings
+ * @param opts - Options including messages, onFinish callback, telemetry settings, and writeMessageAnnotation function
  * @returns A promise that resolves to a StreamTextResult
  */
 export const streamFromDeepSearch = async (opts: {
   messages: Message[];
   onFinish: Parameters<typeof streamText>[0]["onFinish"];
   telemetry: TelemetrySettings;
+  writeMessageAnnotation?: (annotation: OurMessageAnnotation) => void;
 }): Promise<StreamTextResult<{}, string>> => {
   // Get the user's question from the last message
   const lastMessage = opts.messages[opts.messages.length - 1];
@@ -29,7 +31,7 @@ export const streamFromDeepSearch = async (opts: {
   const userQuestion = String(lastMessage.content);
 
   // Run the agent loop to get the answer
-  const result = await runAgentLoop(userQuestion);
+  const result = await runAgentLoop(userQuestion, opts.writeMessageAnnotation);
   
   // Return the result directly since it's already a StreamTextResult
   return result;

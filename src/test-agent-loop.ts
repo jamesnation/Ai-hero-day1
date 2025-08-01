@@ -11,7 +11,9 @@ export const testAgentLoop = async () => {
   const testQuestion = "What are the latest developments in AI technology in 2024?";
   
   try {
-    const result = await runAgentLoop(testQuestion);
+    const result = await runAgentLoop(testQuestion, () => {
+      // No-op function for annotations - not needed in tests
+    });
     
     console.log("\n📝 Final Answer:");
     // Consume the stream to get the text

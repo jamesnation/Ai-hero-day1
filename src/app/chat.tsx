@@ -8,6 +8,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { isNewChatCreated } from "~/utils";
 import type { Message } from "ai";
+import type { OurMessageAnnotation } from "~/types";
 
 interface ChatProps {
   userName: string;
@@ -62,12 +63,16 @@ export const ChatPage = ({ userName, isAuthenticated, chatId, initialMessages, i
           aria-label="Chat messages"
         >
           {messages.map((message, index) => {
+            // Extract annotations from the message
+            const annotations = message.annotations as OurMessageAnnotation[] | undefined;
+            
             return (
               <ChatMessage
                 key={index}
                 parts={message.parts ?? []}
                 role={message.role}
                 userName={userName}
+                annotations={annotations}
               />
             );
           })}

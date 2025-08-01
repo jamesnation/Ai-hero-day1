@@ -5,6 +5,33 @@ import { bulkCrawlWebsites } from "./server/scraper";
 import { answerQuestion } from "./answer-question";
 import { streamText, type StreamTextResult } from "ai";
 import { model } from "./models";
+import type { OurMessageAnnotation } from "./types";
+
+/**
+ * Converts an Action to a SerializableAction for annotations
+ */
+const convertActionToSerializable = (action: Action): OurMessageAnnotation["action"] => {
+  const base = {
+    type: action.type,
+    title: action.title,
+    reasoning: action.reasoning,
+  };
+
+  switch (action.type) {
+    case "search":
+      return {
+        ...base,
+        query: action.query,
+      };
+    case "scrape":
+      return {
+        ...base,
+        urls: action.urls,
+      };
+    case "answer":
+      return base;
+  }
+};
 
 /**
  * Executes a search action by querying the web
@@ -60,9 +87,13 @@ const scrapeUrl = async (urls: string[]) => {
  * Follows the pseudocode structure provided
  * 
  * @param userQuestion - The original question from the user
+ * @param writeMessageAnnotation - Function to send progress annotations back to the user
  * @returns A promise that resolves to a StreamTextResult
  */
-export const runAgentLoop = async (userQuestion: string): Promise<StreamTextResult<{}, string>> => {
+export const runAgentLoop = async (
+  userQuestion: string,
+  writeMessageAnnotation?: (annotation: OurMessageAnnotation) => void
+): Promise<StreamTextResult<{}, string>> => {
   // A persistent container for the state of our system
   const ctx = new SystemContext(userQuestion);
   
@@ -77,6 +108,14 @@ export const runAgentLoop = async (userQuestion: string): Promise<StreamTextResu
       const nextAction = await getNextAction(ctx);
       
       console.log(`🤖 LLM chose action: ${nextAction.type}`);
+      
+      // Send progress information back to the user if writeMessageAnnotation is provided
+      if (writeMessageAnnotation) {
+        writeMessageAnnotation({
+          type: "NEW_ACTION",
+          action: convertActionToSerializable(nextAction),
+        } satisfies OurMessageAnnotation);
+      }
       
       // We execute the action and update the state of our system
       if (nextAction.type === "search") {

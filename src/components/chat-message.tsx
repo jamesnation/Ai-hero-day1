@@ -1,5 +1,7 @@
 import type { Message } from "ai";
 import ReactMarkdown from "react-markdown";
+import { ReasoningSteps } from "./reasoning-steps";
+import type { OurMessageAnnotation } from "../types";
 
 export type MessagePart = NonNullable<Message["parts"]>[number];
 
@@ -7,9 +9,10 @@ interface ChatMessageProps {
   parts: MessagePart[];
   role: string;
   userName: string;
+  annotations?: OurMessageAnnotation[];
 }
 
-export const ChatMessage = ({ parts, role, userName }: ChatMessageProps) => {
+export const ChatMessage = ({ parts, role, userName, annotations }: ChatMessageProps) => {
   const isAI = role === "assistant";
 
   return (
@@ -22,6 +25,12 @@ export const ChatMessage = ({ parts, role, userName }: ChatMessageProps) => {
         <p className="mb-2 text-sm font-semibold text-gray-400">
           {isAI ? "AI" : userName}
         </p>
+        
+        {/* Show reasoning steps for AI messages */}
+        {isAI && annotations && annotations.length > 0 && (
+          <ReasoningSteps annotations={annotations} />
+        )}
+        
         <div className="prose prose-invert max-w-none prose-p:leading-relaxed prose-li:my-1">
           {parts.map((part, idx) => (
             <div

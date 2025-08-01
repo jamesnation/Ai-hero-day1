@@ -20,6 +20,9 @@ export const testIntegration = async () => {
         console.log("✅ onFinish callback executed");
       },
       telemetry: { isEnabled: false },
+      writeMessageAnnotation: () => {
+        // No-op function for annotations - not needed in tests
+      },
     });
     
     console.log("✅ streamFromDeepSearch completed successfully");

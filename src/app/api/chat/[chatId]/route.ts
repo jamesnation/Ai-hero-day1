@@ -4,7 +4,10 @@ import { chats } from "../../../../server/db/schema";
 import { eq } from "drizzle-orm";
 import { auth } from "../../../../server/auth/index.ts";
 
-export async function DELETE(request: NextRequest, { params }: { params: { chatId: string } }) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ chatId: string }> }
+) {
   // Authenticate the user
   const session = await auth();
   if (!session || !session.user) {
@@ -15,7 +18,7 @@ export async function DELETE(request: NextRequest, { params }: { params: { chatI
   }
 
   const userId = session.user.id;
-  const chatId = params.chatId;
+  const { chatId } = await params;
 
   // Fetch the chat from the database
   const [chat] = await db.select().from(chats).where(eq(chats.id, chatId));
