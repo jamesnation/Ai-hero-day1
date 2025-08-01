@@ -29,12 +29,15 @@ export const streamFromDeepSearch = async (opts: {
   }
   
   const userQuestion = String(lastMessage.content);
+  
+  // Get the conversation history (all messages except the last one)
+  const conversationHistory = opts.messages.slice(0, -1);
 
   // Extract langfuseTraceId from telemetry metadata if available
   const langfuseTraceId = opts.telemetry.metadata?.langfuseTraceId as string | undefined;
 
-  // Run the agent loop to get the answer
-  const result = await runAgentLoop(userQuestion, opts.writeMessageAnnotation, langfuseTraceId);
+  // Run the agent loop to get the answer, passing the conversation history
+  const result = await runAgentLoop(userQuestion, opts.writeMessageAnnotation, langfuseTraceId, conversationHistory);
   
   // Return the result directly since it's already a StreamTextResult
   return result;

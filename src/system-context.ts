@@ -1,3 +1,5 @@
+import type { Message } from "ai";
+
 /**
  * Represents a single search result from a query
  */
@@ -40,6 +42,11 @@ export class SystemContext {
   private userQuestion: string;
 
   /**
+   * The conversation history for context
+   */
+  private conversationHistory: Message[];
+
+  /**
    * The history of all queries searched
    */
   private queryHistory: QueryResult[] = [];
@@ -50,10 +57,11 @@ export class SystemContext {
   private scrapeHistory: ScrapeResult[] = [];
 
   /**
-   * Constructor to initialize the context with the user question
+   * Constructor to initialize the context with the user question and conversation history
    */
-  constructor(userQuestion: string) {
+  constructor(userQuestion: string, conversationHistory: Message[] = []) {
     this.userQuestion = userQuestion;
+    this.conversationHistory = conversationHistory;
   }
 
   /**
@@ -100,6 +108,13 @@ export class SystemContext {
   }
 
   /**
+   * Gets the conversation history
+   */
+  getConversationHistory(): Message[] {
+    return this.conversationHistory;
+  }
+
+  /**
    * Formats a single search result for LLM consumption
    */
   private toQueryResult(query: QueryResultSearchResult): string {
@@ -143,12 +158,34 @@ export class SystemContext {
   }
 
   /**
+   * Formats the conversation history for LLM consumption
+   */
+  getFormattedConversationHistory(): string {
+    if (this.conversationHistory.length === 0) {
+      return "No previous conversation.";
+    }
+
+    return this.conversationHistory
+      .map((message) => {
+        const role = message.role === "user" ? "User" : "Assistant";
+        const content = Array.isArray(message.content) 
+          ? message.content.map(part => part.type === "text" ? part.text : "").join("")
+          : String(message.content);
+        return `${role}: ${content}`;
+      })
+      .join("\n\n");
+  }
+
+  /**
    * Returns a complete formatted context for LLM consumption
-   * Combines user question, query and scrape history with current step information
+   * Combines conversation history, user question, query and scrape history with current step information
    */
   getFormattedContext(): string {
     const parts = [
-      `## User Question: "${this.userQuestion}"`,
+      "## Conversation History:",
+      this.getFormattedConversationHistory(),
+      "",
+      `## Current User Question: "${this.userQuestion}"`,
       "",
       `## Current Step: ${this.step}`,
       "",

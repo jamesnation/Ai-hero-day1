@@ -23,7 +23,7 @@ export const testProgressIndication = async () => {
         console.log(`   URLs: ${annotation.action.urls?.join(", ")}`);
       }
       annotations.push(annotation);
-    }, undefined); // No telemetry for tests
+    }, undefined, []); // No telemetry or conversation history for tests
     
     console.log("\n✅ Progress indication test completed successfully");
     console.log(`📊 Total steps: ${annotations.length}`);

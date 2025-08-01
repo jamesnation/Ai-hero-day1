@@ -3,7 +3,7 @@ import { getNextAction, type Action } from "./get-next-action";
 import { searchSerper } from "./serper";
 import { bulkCrawlWebsites } from "./server/scraper";
 import { answerQuestion } from "./answer-question";
-import { streamText, type StreamTextResult } from "ai";
+import { streamText, type StreamTextResult, type Message } from "ai";
 import { model } from "./models";
 import type { OurMessageAnnotation } from "./types";
 
@@ -89,17 +89,20 @@ const scrapeUrl = async (urls: string[]) => {
  * @param userQuestion - The original question from the user
  * @param writeMessageAnnotation - Function to send progress annotations back to the user
  * @param langfuseTraceId - Optional Langfuse trace ID for telemetry
+ * @param conversationHistory - The conversation history for context
  * @returns A promise that resolves to a StreamTextResult
  */
 export const runAgentLoop = async (
   userQuestion: string,
   writeMessageAnnotation?: (annotation: OurMessageAnnotation) => void,
-  langfuseTraceId?: string
+  langfuseTraceId?: string,
+  conversationHistory: Message[] = []
 ): Promise<StreamTextResult<{}, string>> => {
   // A persistent container for the state of our system
-  const ctx = new SystemContext(userQuestion);
+  const ctx = new SystemContext(userQuestion, conversationHistory);
   
   console.log(`🚀 Starting agent loop for: "${userQuestion}"`);
+  console.log(`📝 Conversation history: ${conversationHistory.length} messages`);
   
   try {
     // A loop that continues until we have an answer or we've taken 10 actions
