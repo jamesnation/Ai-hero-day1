@@ -4,21 +4,11 @@ import { model } from "./models";
 import type { SystemContext } from "./system-context";
 
 /**
- * Represents a search action - searching the web for more information
+ * Represents a search action - searching the web for information
  */
 export interface SearchAction {
   type: "search";
   query: string;
-  title: string;
-  reasoning: string;
-}
-
-/**
- * Represents a scrape action - scraping URLs for content
- */
-export interface ScrapeAction {
-  type: "scrape";
-  urls: string[];
   title: string;
   reasoning: string;
 }
@@ -35,7 +25,7 @@ export interface AnswerAction {
 /**
  * Union type representing all possible actions
  */
-export type Action = SearchAction | ScrapeAction | AnswerAction;
+export type Action = SearchAction | AnswerAction;
 
 /**
  * Zod schema for structured output from the LLM
@@ -43,11 +33,10 @@ export type Action = SearchAction | ScrapeAction | AnswerAction;
  */
 export const actionSchema = z.object({
   type: z
-    .enum(["search", "scrape", "answer"])
+    .enum(["search", "answer"])
     .describe(
       `The type of action to take.
-      - 'search': Search the web for more information.
-      - 'scrape': Scrape a URL.
+      - 'search': Search the web for more information and automatically scrape the results.
       - 'answer': Answer the user's question and complete the loop.`,
     ),
   title: z
@@ -64,19 +53,13 @@ export const actionSchema = z.object({
       "The query to search for. Required if type is 'search'.",
     )
     .optional(),
-  urls: z
-    .array(z.string())
-    .describe(
-      "The URLs to scrape. Required if type is 'scrape'.",
-    )
-    .optional(),
 });
 
 /**
  * Determines the next action to take in the deep search system
  * Uses structured output to ensure the LLM returns a valid action
  * 
- * @param context - The current system context with query and scrape history
+ * @param context - The current system context with search history
  * @param langfuseTraceId - Optional Langfuse trace ID for telemetry
  * @returns A structured action object that can be executed
  */
@@ -90,13 +73,12 @@ export const getNextAction = async (
     model,
     schema: actionSchema,
     prompt: `
-You are an AI assistant that can search the web, scrape URLs, or provide answers to user questions.
+You are an AI assistant that can search the web or provide answers to user questions.
 
 Your goal is to help answer the user's question: "${userQuestion}"
 
 You have access to the following tools:
-- search: Search the web for more information
-- scrape: Scrape URLs to get detailed content
+- search: Search the web for more information and automatically scrape the content of the results
 - answer: Provide the final answer to the user's question
 
 Here is your current context:
@@ -105,9 +87,8 @@ ${context.getFormattedContext()}
 
 Based on the context above, decide what action to take next:
 
-1. If you need more information to answer the question, use "search" with a relevant query
-2. If you have search results but need to read the full content of URLs, use "scrape" with the URLs
-3. If you have enough information to answer the question, use "answer"
+1. If you need more information to answer the question, use "search" with a relevant query. The search will automatically scrape the content of the results.
+2. If you have enough information to answer the question, use "answer"
 
 Choose the most appropriate action and provide the required parameters.
 `,
@@ -135,17 +116,6 @@ Choose the most appropriate action and provide the required parameters.
         reasoning: action.reasoning
       };
     
-    case "scrape":
-      if (!action.urls || action.urls.length === 0) {
-        throw new Error("Scrape action requires at least one URL");
-      }
-      return { 
-        type: "scrape", 
-        urls: action.urls,
-        title: action.title,
-        reasoning: action.reasoning
-      };
-    
     case "answer":
       return { 
         type: "answer",
@@ -154,6 +124,6 @@ Choose the most appropriate action and provide the required parameters.
       };
     
     default:
-      throw new Error(`Invalid action type: ${(action as any).type}`);
+      throw new Error(`Invalid action type: ${(action as { type: string }).type}`);
   }
 }; 

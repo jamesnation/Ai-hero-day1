@@ -1,34 +1,27 @@
 import type { Message } from "ai";
 
 /**
- * Represents a single search result from a query
+ * Represents a search result with scraped content
  */
-type QueryResultSearchResult = {
+type SearchResult = {
   date: string;
   title: string;
   url: string;
   snippet: string;
+  scrapedContent: string;
 };
 
 /**
- * Represents the complete results from a single search query
+ * Represents a search history entry that combines query and scrape data
  */
-type QueryResult = {
+type SearchHistoryEntry = {
   query: string;
-  results: QueryResultSearchResult[];
-};
-
-/**
- * Represents the result of scraping a single URL
- */
-type ScrapeResult = {
-  url: string;
-  result: string;
+  results: SearchResult[];
 };
 
 /**
  * SystemContext manages the state and history for the deep search system.
- * It tracks queries, scrapes, and provides formatted output for LLM consumption.
+ * It tracks searches and their associated scraped content, and provides formatted output for LLM consumption.
  */
 export class SystemContext {
   /**
@@ -47,14 +40,9 @@ export class SystemContext {
   private conversationHistory: Message[];
 
   /**
-   * The history of all queries searched
+   * The history of all searches with their associated scraped content
    */
-  private queryHistory: QueryResult[] = [];
-
-  /**
-   * The history of all URLs scraped
-   */
-  private scrapeHistory: ScrapeResult[] = [];
+  private searchHistory: SearchHistoryEntry[] = [];
 
   /**
    * Constructor to initialize the context with the user question and conversation history
@@ -73,27 +61,6 @@ export class SystemContext {
   }
 
   /**
-   * Adds new query results to the history
-   */
-  reportQueries(queries: QueryResult[]): void {
-    this.queryHistory.push(...queries);
-  }
-
-  /**
-   * Adds new scrape results to the history
-   */
-  reportScrapes(scrapes: ScrapeResult[]): void {
-    this.scrapeHistory.push(...scrapes);
-  }
-
-  /**
-   * Increments the current step counter
-   */
-  incrementStep(): void {
-    this.step++;
-  }
-
-  /**
    * Gets the current step number
    */
   getCurrentStep(): number {
@@ -108,53 +75,17 @@ export class SystemContext {
   }
 
   /**
-   * Gets the conversation history
+   * Adds new search results to the history
    */
-  getConversationHistory(): Message[] {
-    return this.conversationHistory;
+  reportSearch(search: SearchHistoryEntry): void {
+    this.searchHistory.push(search);
   }
 
   /**
-   * Formats a single search result for LLM consumption
+   * Increments the current step counter
    */
-  private toQueryResult(query: QueryResultSearchResult): string {
-    return [
-      `### ${query.date} - ${query.title}`,
-      query.url,
-      query.snippet,
-    ].join("\n\n");
-  }
-
-  /**
-   * Returns the query history formatted for LLM consumption
-   * Uses markdown formatting for better readability
-   */
-  getQueryHistory(): string {
-    return this.queryHistory
-      .map((query) =>
-        [
-          `## Query: "${query.query}"`,
-          ...query.results.map(this.toQueryResult),
-        ].join("\n\n"),
-      )
-      .join("\n\n");
-  }
-
-  /**
-   * Returns the scrape history formatted for LLM consumption
-   * Wraps scrape results in XML tags to distinguish from markdown content
-   */
-  getScrapeHistory(): string {
-    return this.scrapeHistory
-      .map((scrape) =>
-        [
-          `## Scrape: "${scrape.url}"`,
-          `<scrape_result>`,
-          scrape.result,
-          `</scrape_result>`,
-        ].join("\n\n"),
-      )
-      .join("\n\n");
+  incrementStep(): void {
+    this.step++;
   }
 
   /**
@@ -166,19 +97,37 @@ export class SystemContext {
     }
 
     return this.conversationHistory
-      .map((message) => {
-        const role = message.role === "user" ? "User" : "Assistant";
-        const content = Array.isArray(message.content) 
-          ? message.content.map(part => part.type === "text" ? part.text : "").join("")
-          : String(message.content);
-        return `${role}: ${content}`;
-      })
+      .map((message) => `${message.role}: ${message.content}`)
+      .join("\n\n");
+  }
+
+  /**
+   * Returns the search history formatted for LLM consumption
+   * Uses markdown formatting for better readability
+   */
+  getSearchHistory(): string {
+    return this.searchHistory
+      .map((search) =>
+        [
+          `## Query: "${search.query}"`,
+          ...search.results.map((result) =>
+            [
+              `### ${result.date} - ${result.title}`,
+              result.url,
+              result.snippet,
+              `<scrape_result>`,
+              result.scrapedContent,
+              `</scrape_result>`,
+            ].join("\n\n"),
+          ),
+        ].join("\n\n"),
+      )
       .join("\n\n");
   }
 
   /**
    * Returns a complete formatted context for LLM consumption
-   * Combines conversation history, user question, query and scrape history with current step information
+   * Combines conversation history, user question, search history with current step information
    */
   getFormattedContext(): string {
     const parts = [
@@ -189,11 +138,8 @@ export class SystemContext {
       "",
       `## Current Step: ${this.step}`,
       "",
-      "## Query History:",
-      this.getQueryHistory(),
-      "",
-      "## Scrape History:",
-      this.getScrapeHistory(),
+      "## Search History:",
+      this.getSearchHistory(),
     ];
 
     return parts.join("\n\n");

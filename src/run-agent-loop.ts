@@ -23,67 +23,52 @@ const convertActionToSerializable = (action: Action): OurMessageAnnotation["acti
         ...base,
         query: action.query,
       };
-    case "scrape":
-      return {
-        ...base,
-        urls: action.urls,
-      };
     case "answer":
       return base;
   }
 };
 
 /**
- * Executes a search action by querying the web
- * Reuses the existing searchWeb tool implementation
+ * Executes a search action by querying the web and automatically scraping the results
+ * Combines search and scrape functionality into a single operation
  */
 const searchWeb = async (query: string) => {
+  // Search for results with fewer results (3 instead of 5) to reduce context window usage
   const results = await searchSerper(
-    { q: query, num: 5 }, // Limit to 5 results for efficiency
+    { q: query, num: 3 },
     new AbortController().signal,
   );
 
-  return {
-    query,
-    results: results.organic.map((result) => ({
+  // Extract URLs from search results
+  const urls = results.organic.map((result) => result.link);
+
+  // Scrape all URLs in parallel
+  const scrapeResult = await bulkCrawlWebsites({ urls });
+
+  // Combine search results with scraped content
+  const combinedResults = results.organic.map((result, index) => {
+    const scrapedData = scrapeResult.results[index];
+    const scrapedContent = scrapedData?.result.success 
+      ? scrapedData.result.data 
+      : `Error: ${scrapedData?.result.success === false ? scrapedData.result.error : 'Unknown error'}`;
+
+    return {
       date: (result.date ?? new Date().toISOString().split('T')[0]) as string,
       title: result.title,
       url: result.link,
       snippet: result.snippet,
-    })),
+      scrapedContent,
+    };
+  });
+
+  return {
+    query,
+    results: combinedResults,
   };
 };
 
 /**
- * Executes a scrape action by crawling URLs
- * Reuses the existing scrapePages tool implementation
- */
-const scrapeUrl = async (urls: string[]) => {
-  // Manual URL validation (copied from existing implementation)
-  const validUrls = urls.filter((u: string) => {
-    try {
-      new URL(u);
-      return true;
-    } catch {
-      return false;
-    }
-  });
-
-  if (validUrls.length !== urls.length) {
-    // Return empty array for invalid URLs to maintain type consistency
-    return [];
-  }
-
-  const result = await bulkCrawlWebsites({ urls: validUrls });
-  
-  return result.results.map((result) => ({
-    url: result.url,
-    result: result.result.success ? result.result.data : `Error: ${result.result.error}`,
-  }));
-};
-
-/**
- * Main agent loop that orchestrates the search, scrape, and answer workflow
+ * Main agent loop that orchestrates the search and answer workflow
  * Follows the pseudocode structure provided
  * 
  * @param userQuestion - The original question from the user
@@ -129,17 +114,9 @@ export const runAgentLoop = async (
         console.log(`🔍 Searching for: "${nextAction.query}"`);
         
         const result = await searchWeb(nextAction.query);
-        ctx.reportQueries([result]);
+        ctx.reportSearch(result);
         
-        console.log(`✅ Found ${result.results.length} search results`);
-        
-      } else if (nextAction.type === "scrape") {
-        console.log(`🌐 Scraping ${nextAction.urls.length} URLs`);
-        
-        const result = await scrapeUrl(nextAction.urls);
-        ctx.reportScrapes(result);
-        
-        console.log(`✅ Successfully scraped ${result.length} URLs`);
+        console.log(`✅ Found ${result.results.length} search results with scraped content`);
         
       } else if (nextAction.type === "answer") {
         console.log(`💡 Generating answer...`);

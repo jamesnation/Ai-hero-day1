@@ -19,8 +19,6 @@ export const testProgressIndication = async () => {
       console.log(`   Reasoning: ${annotation.action.reasoning}`);
       if (annotation.action.type === "search") {
         console.log(`   Query: ${annotation.action.query}`);
-      } else if (annotation.action.type === "scrape") {
-        console.log(`   URLs: ${annotation.action.urls?.join(", ")}`);
       }
       annotations.push(annotation);
     }, undefined, [], undefined); // No telemetry, conversation history, or onFinish for tests

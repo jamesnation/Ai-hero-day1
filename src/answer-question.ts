@@ -10,9 +10,9 @@ interface AnswerOptions {
 }
 
 /**
- * Generates an answer to the user's question based on the search and scrape context
+ * Generates an answer to the user's question based on the search context
  * 
- * @param context - The system context with all search and scrape history
+ * @param context - The system context with all search history
  * @param options - Options including isFinal flag
  * @param langfuseTraceId - Optional Langfuse trace ID for telemetry
  * @param onFinish - Optional callback to run when the stream finishes
@@ -30,11 +30,11 @@ export const answerQuestion = async (
   const systemPrompt = [
     "You are an expert estimator of collectibles values with extensive knowledge of antiques, memorabilia, trading cards, coins, stamps, and other valuable items.",
     "",
-    "Your task is to provide concise estimates of collectibles values based on the search results and scraped content provided.",
+    "Your task is to provide concise estimates of collectibles values based on the search results provided.",
     "",
     "Guidelines:",
     "- Provide clear, concise value estimates for the collectible in question",
-    "- Use information from the search results and scraped content to support your estimates",
+    "- Use information from the search results to support your estimates",
     "- Cite your sources using markdown links when possible",
     "- Be accurate and factual in your assessments",
     "- If information is conflicting, acknowledge the different perspectives and explain why",
@@ -49,7 +49,7 @@ export const answerQuestion = async (
     "User Question:",
     userQuestion,
     "",
-    "Search and Scrape Context:",
+    "Search Context:",
     context.getFormattedContext(),
   ].join("\n");
 
