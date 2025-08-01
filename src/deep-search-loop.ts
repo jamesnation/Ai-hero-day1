@@ -2,6 +2,8 @@ import { SystemContext } from "./system-context";
 import { getNextAction, type Action } from "./get-next-action";
 import { searchSerper } from "./serper";
 import { bulkCrawlWebsites } from "./server/scraper";
+import { streamText, type StreamTextResult } from "ai";
+import { model } from "./models";
 
 /**
  * Executes a search action by querying the web
@@ -41,7 +43,7 @@ const executeScrapeAction = async (action: Extract<Action, { type: "scrape" }>) 
  * @param userQuestion - The original question from the user
  * @returns The final answer and the complete context for debugging
  */
-export const runDeepSearchLoop = async (userQuestion: string) => {
+export const runDeepSearchLoop = async (userQuestion: string): Promise<StreamTextResult<{}, string>> => {
   // Initialize the system context
   const context = new SystemContext(userQuestion);
   
@@ -111,21 +113,23 @@ export const runDeepSearchLoop = async (userQuestion: string) => {
     
     console.log(`\n🎉 Deep search completed in ${context.getCurrentStep()} steps`);
     
-    return {
-      answer: finalAnswer,
-      context: context.getFormattedContext(),
-      stepCount: context.getCurrentStep(),
-    };
+    return streamText({
+      model,
+      messages: [{ role: 'user', content: userQuestion }],
+      system: "You are a helpful assistant. Provide the answer exactly as given.",
+      prompt: finalAnswer,
+    });
     
   } catch (error) {
     console.error(`❌ Error in deep search loop:`, error);
     
-    return {
-      answer: `Sorry, I encountered an error while searching for your question: "${userQuestion}". Error: ${error instanceof Error ? error.message : 'Unknown error'}`,
-      context: context.getFormattedContext(),
-      stepCount: context.getCurrentStep(),
-      error: error instanceof Error ? error.message : 'Unknown error',
-    };
+    const errorMessage = `Sorry, I encountered an error while searching for your question: "${userQuestion}". Error: ${error instanceof Error ? error.message : 'Unknown error'}`;
+    return streamText({
+      model,
+      messages: [{ role: 'user', content: userQuestion }],
+      system: "You are a helpful assistant. Provide the answer exactly as given.",
+      prompt: errorMessage,
+    });
   }
 };
 
@@ -144,7 +148,7 @@ export const deepSearch = async (userQuestion: string) => {
   const result = await runDeepSearchLoop(userQuestion);
   
   console.log(`⏰ Completed at: ${new Date().toISOString()}`);
-  console.log(`📊 Final stats: ${result.stepCount} steps, ${result.answer ? 'Answer found' : 'No answer'}`);
+  console.log(`📊 Final stats: Stream completed successfully`);
   
   return result;
 }; 

@@ -19,7 +19,7 @@ const searchWeb = async (query: string) => {
   return {
     query,
     results: results.organic.map((result) => ({
-      date: (result.date || new Date().toISOString().split('T')[0]) as string,
+      date: (result.date ?? new Date().toISOString().split('T')[0]) as string,
       title: result.title,
       url: result.link,
       snippet: result.snippet,

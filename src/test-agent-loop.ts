@@ -14,18 +14,14 @@ export const testAgentLoop = async () => {
     const result = await runAgentLoop(testQuestion);
     
     console.log("\n📝 Final Answer:");
-    console.log(result.answer);
+    // Consume the stream to get the text
+    await result.consumeStream();
+    const finalText = await result.text;
+    console.log(finalText);
     
     console.log("\n📊 Summary:");
-    console.log(`- Steps taken: ${result.stepCount}`);
-    console.log(`- Has error: ${!!result.error}`);
-    
-    if (result.error) {
-      console.log(`- Error: ${result.error}`);
-    }
-    
-    console.log("\n🔍 Full Context (for debugging):");
-    console.log(result.context);
+    console.log(`- Stream type: ${typeof result}`);
+    console.log(`- Text length: ${finalText.length} characters`);
     
   } catch (error) {
     console.error("❌ Test failed:", error);
