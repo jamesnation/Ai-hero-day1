@@ -7,7 +7,7 @@ import type { Message as AIMessage } from "ai";
 export async function upsertChat(opts: {
   userId: string;
   chatId: string;
-  title: string;
+  title?: string; // Make title optional
   messages: AIMessage[];
 }) {
   // Check if the chat exists and belongs to the user
@@ -18,9 +18,13 @@ export async function upsertChat(opts: {
   if (existingChat) {
     // Delete all existing messages for this chat
     await db.delete(messages).where(eq(messages.chatId, opts.chatId));
-    // Update the chat title and updatedAt
+    // Update the chat title and updatedAt (only if title is provided)
+    const updateData: any = { updatedAt: new Date() };
+    if (opts.title) {
+      updateData.title = opts.title;
+    }
     await db.update(chats)
-      .set({ title: opts.title, updatedAt: new Date() })
+      .set(updateData)
       .where(eq(chats.id, opts.chatId));
   } else {
     // --- SECURITY CHECK ---
@@ -38,7 +42,7 @@ export async function upsertChat(opts: {
     await db.insert(chats).values({
       id: opts.chatId,
       userId: opts.userId,
-      title: opts.title,
+      title: opts.title || "New Chat", // Use provided title or default
       createdAt: new Date(),
       updatedAt: new Date(),
     });

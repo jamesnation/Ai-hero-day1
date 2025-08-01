@@ -14,18 +14,9 @@ import { env } from "~/env";
 import { checkRateLimit, recordRateLimit } from "../../../server/redis/rate-limit";
 import { streamFromDeepSearch } from "../../../deep-search";
 import type { OurMessageAnnotation } from "../../../types";
+import { generateChatTitle } from "../../../utils";
 
 export const maxDuration = 60;
-
-function generateChatTitle(messages: Message[]): string {
-  // Use the first user message as the title, truncated to 50 chars
-  const firstUserMsg = messages.find((m) => m.role === "user");
-  if (!firstUserMsg) return "New Chat";
-  const text = Array.isArray(firstUserMsg.content)
-    ? firstUserMsg.content.join(" ")
-    : String(firstUserMsg.content);
-  return text.slice(0, 50) || "New Chat";
-}
 
 export async function POST(request: Request) {
   const session = await auth();
@@ -99,13 +90,13 @@ export async function POST(request: Request) {
   const currentChatId = chatId;
   let createdNewChat = false;
 
-  // If isNewChat, create a new chat in the DB with the user's message
+  // If isNewChat, create a new chat in the DB with a temporary title
   if (isNewChat) {
     createdNewChat = true;
     await upsertChat({
       userId,
       chatId: currentChatId,
-      title: generateChatTitle(messages),
+      title: "Generating...", // Temporary title
       messages: messages.map((msg) => ({
         ...msg,
         parts: Array.isArray(msg.parts) ? msg.parts : [],
@@ -124,6 +115,14 @@ export async function POST(request: Request) {
     userId: userId,
   });
   // --- End Langfuse integration ---
+
+  // Generate title asynchronously if this is a new chat
+  let titlePromise: Promise<string> | undefined;
+  if (isNewChat) {
+    titlePromise = generateChatTitle(messages);
+  } else {
+    titlePromise = Promise.resolve("");
+  }
 
   return createDataStreamResponse({
     execute: async (dataStream) => {
@@ -146,15 +145,18 @@ export async function POST(request: Request) {
             lastMessage.annotations = annotations;
           }
 
+          // Resolve the title promise
+          const title = await titlePromise;
+
           await upsertChat({
             userId,
             chatId: currentChatId,
-            title: generateChatTitle(updatedMessages),
             messages: updatedMessages.map((msg) => ({
               ...msg,
               parts: Array.isArray(msg.parts) ? msg.parts : [],
               content: msg.content,
             })),
+            ...(title ? { title } : {}), // Only save the title if it's not empty
           });
           // --- Langfuse flush ---
           await langfuse.flushAsync();

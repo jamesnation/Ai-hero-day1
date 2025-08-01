@@ -1,4 +1,4 @@
-import { getChat } from "../server/db/queries";
+import { getChat } from "./server/db/queries";
 
 /**
  * Test function to verify that annotations are properly loaded from the database
@@ -33,9 +33,10 @@ export const testAnnotationLoading = async () => {
       console.log(`   ID: ${msg.id}`);
       console.log(`   Parts: ${Array.isArray(msg.parts) ? msg.parts.length : 0} parts`);
       
-      if (msg.annotations) {
-        console.log(`   ✅ Annotations: ${msg.annotations.length} annotations`);
-        (msg.annotations as any[]).forEach((annotation: any, annIndex: number) => {
+      const annotations = msg.annotations as any[] | undefined;
+      if (annotations && annotations.length > 0) {
+        console.log(`   ✅ Annotations: ${annotations.length} annotations`);
+        annotations.forEach((annotation: any, annIndex: number) => {
           console.log(`      ${annIndex + 1}. ${annotation.action?.title || 'Unknown'}`);
         });
       } else {
