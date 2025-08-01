@@ -77,10 +77,12 @@ export const actionSchema = z.object({
  * Uses structured output to ensure the LLM returns a valid action
  * 
  * @param context - The current system context with query and scrape history
+ * @param langfuseTraceId - Optional Langfuse trace ID for telemetry
  * @returns A structured action object that can be executed
  */
 export const getNextAction = async (
   context: SystemContext,
+  langfuseTraceId?: string,
 ): Promise<Action> => {
   const userQuestion = context.getUserQuestion();
   
@@ -109,6 +111,13 @@ Based on the context above, decide what action to take next:
 
 Choose the most appropriate action and provide the required parameters.
 `,
+    experimental_telemetry: langfuseTraceId ? {
+      isEnabled: true,
+      functionId: "get-next-action",
+      metadata: {
+        langfuseTraceId,
+      },
+    } : undefined,
   });
 
   // Validate the result and return the appropriate action type

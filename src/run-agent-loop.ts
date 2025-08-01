@@ -88,11 +88,13 @@ const scrapeUrl = async (urls: string[]) => {
  * 
  * @param userQuestion - The original question from the user
  * @param writeMessageAnnotation - Function to send progress annotations back to the user
+ * @param langfuseTraceId - Optional Langfuse trace ID for telemetry
  * @returns A promise that resolves to a StreamTextResult
  */
 export const runAgentLoop = async (
   userQuestion: string,
-  writeMessageAnnotation?: (annotation: OurMessageAnnotation) => void
+  writeMessageAnnotation?: (annotation: OurMessageAnnotation) => void,
+  langfuseTraceId?: string
 ): Promise<StreamTextResult<{}, string>> => {
   // A persistent container for the state of our system
   const ctx = new SystemContext(userQuestion);
@@ -105,7 +107,7 @@ export const runAgentLoop = async (
       console.log(`\n📋 Step ${ctx.getCurrentStep() + 1}:`);
       
       // We choose the next action based on the state of our system
-      const nextAction = await getNextAction(ctx);
+      const nextAction = await getNextAction(ctx, langfuseTraceId);
       
       console.log(`🤖 LLM chose action: ${nextAction.type}`);
       
@@ -141,7 +143,7 @@ export const runAgentLoop = async (
         ctx.incrementStep();
         
         // Return the answer as a stream
-        return await answerQuestion(ctx, { isFinal: false });
+        return await answerQuestion(ctx, { isFinal: false }, langfuseTraceId);
       }
       
       // We increment the step counter
@@ -152,7 +154,7 @@ export const runAgentLoop = async (
     // we ask the LLM to give its best attempt at an answer
     console.log(`⚠️ Reached step limit, generating final answer...`);
     
-    return await answerQuestion(ctx, { isFinal: true });
+    return await answerQuestion(ctx, { isFinal: true }, langfuseTraceId);
     
   } catch (error) {
     console.error(`❌ Error in agent loop:`, error);
@@ -163,6 +165,13 @@ export const runAgentLoop = async (
       messages: [{ role: 'user', content: userQuestion }],
       system: "You are a helpful assistant. Provide the answer exactly as given.",
       prompt: errorMessage,
+      experimental_telemetry: langfuseTraceId ? {
+        isEnabled: true,
+        functionId: "agent-loop-error-handler",
+        metadata: {
+          langfuseTraceId,
+        },
+      } : undefined,
     });
   }
 }; 
