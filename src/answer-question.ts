@@ -1,4 +1,4 @@
-import { streamText, type StreamTextResult } from "ai";
+import { streamText, type StreamTextResult, type StreamTextOnFinishCallback } from "ai";
 import { model } from "./models";
 import type { SystemContext } from "./system-context";
 
@@ -15,12 +15,14 @@ interface AnswerOptions {
  * @param context - The system context with all search and scrape history
  * @param options - Options including isFinal flag
  * @param langfuseTraceId - Optional Langfuse trace ID for telemetry
+ * @param onFinish - Optional callback to run when the stream finishes
  * @returns A StreamTextResult containing the generated answer
  */
 export const answerQuestion = async (
   context: SystemContext,
   options: AnswerOptions,
   langfuseTraceId?: string,
+  onFinish?: StreamTextOnFinishCallback<{}>,
 ): Promise<StreamTextResult<{}, string>> => {
   const { isFinal } = options;
   const userQuestion = context.getUserQuestion();
@@ -56,6 +58,7 @@ export const answerQuestion = async (
     messages: [{ role: 'user', content: userQuestion }],
     system: systemPrompt,
     maxTokens: 2000, // Limit response length
+    onFinish, // Pass the onFinish callback
     experimental_telemetry: langfuseTraceId ? {
       isEnabled: true,
       functionId: isFinal ? "answer-question-final" : "answer-question",

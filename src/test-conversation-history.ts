@@ -41,7 +41,8 @@ export const testConversationHistory = async () => {
         console.log(`   Reasoning: ${annotation.action.reasoning}`);
       },
       undefined, // No telemetry for this test
-      conversationHistory
+      conversationHistory,
+      undefined // No onFinish for tests
     );
     
     console.log("\n✅ Conversation history test completed successfully");

@@ -4,6 +4,7 @@ import { auth } from "~/server/auth/index.ts";
 import { ChatPage } from "./chat.tsx";
 import { getChats, getChat } from "../server/db/queries";
 import type { Message } from "ai";
+import type { OurMessageAnnotation } from "~/types";
 import { randomUUID } from "crypto";
 
 export default async function HomePage({
@@ -31,6 +32,7 @@ export default async function HomePage({
         role: msg.role as "user" | "assistant",
         parts: Array.isArray(msg.parts) ? msg.parts : [],
         content: "",
+        annotations: msg.annotations as OurMessageAnnotation[] | undefined, // Cast to correct type
       })) ?? [];
     }
   }

@@ -13,7 +13,7 @@ export const testAgentLoop = async () => {
   try {
     const result = await runAgentLoop(testQuestion, () => {
       // No-op function for annotations - not needed in tests
-    }, undefined, []); // No telemetry or conversation history for tests
+    }, undefined, [], undefined); // No telemetry, conversation history, or onFinish for tests
     
     console.log("\n📝 Final Answer:");
     // Consume the stream to get the text

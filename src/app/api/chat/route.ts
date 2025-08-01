@@ -127,6 +127,9 @@ export async function POST(request: Request) {
 
   return createDataStreamResponse({
     execute: async (dataStream) => {
+      // Collect annotations in memory
+      const annotations: OurMessageAnnotation[] = [];
+
       // Wait for the result from the new agent loop system
       const result = await streamFromDeepSearch({
         messages,
@@ -136,6 +139,13 @@ export async function POST(request: Request) {
             messages,
             responseMessages,
           });
+
+          // Add annotations to the last message (the AI response)
+          const lastMessage = updatedMessages[updatedMessages.length - 1];
+          if (lastMessage && annotations.length > 0) {
+            lastMessage.annotations = annotations;
+          }
+
           await upsertChat({
             userId,
             chatId: currentChatId,
@@ -158,6 +168,9 @@ export async function POST(request: Request) {
           },
         },
         writeMessageAnnotation: (annotation: OurMessageAnnotation) => {
+          // Save the annotation in-memory
+          annotations.push(annotation);
+          // Send it to the client
           dataStream.writeMessageAnnotation(annotation);
         },
       });

@@ -20,7 +20,8 @@ export const testTelemetry = async () => {
         console.log(`📋 Step: ${annotation.action.title}`);
       }, 
       testTraceId,
-      [] // No conversation history for tests
+      [], // No conversation history for tests
+      undefined // No onFinish for tests
     );
     
     console.log("\n✅ Telemetry test completed successfully");

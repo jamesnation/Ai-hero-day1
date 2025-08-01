@@ -36,8 +36,8 @@ export const streamFromDeepSearch = async (opts: {
   // Extract langfuseTraceId from telemetry metadata if available
   const langfuseTraceId = opts.telemetry.metadata?.langfuseTraceId as string | undefined;
 
-  // Run the agent loop to get the answer, passing the conversation history
-  const result = await runAgentLoop(userQuestion, opts.writeMessageAnnotation, langfuseTraceId, conversationHistory);
+  // Run the agent loop to get the answer, passing the conversation history and onFinish
+  const result = await runAgentLoop(userQuestion, opts.writeMessageAnnotation, langfuseTraceId, conversationHistory, opts.onFinish);
   
   // Return the result directly since it's already a StreamTextResult
   return result;

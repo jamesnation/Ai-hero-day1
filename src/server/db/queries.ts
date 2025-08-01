@@ -52,6 +52,7 @@ export async function upsertChat(opts: {
         chatId: opts.chatId,
         role: msg.role,
         parts: msg.parts, // assuming msg.content is JSON-serializable
+        annotations: msg.annotations, // Save annotations to database
         order: idx,
         createdAt: new Date(),
       }))
