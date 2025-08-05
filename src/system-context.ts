@@ -1,7 +1,7 @@
 import type { Message } from "ai";
 
 /**
- * Represents a search result with scraped content
+ * Represents a search result with scraped content and summary
  */
 type SearchResult = {
   date: string;
@@ -9,6 +9,7 @@ type SearchResult = {
   url: string;
   snippet: string;
   scrapedContent: string;
+  summary: string;
 };
 
 /**
@@ -103,7 +104,7 @@ export class SystemContext {
 
   /**
    * Returns the search history formatted for LLM consumption
-   * Uses markdown formatting for better readability
+   * Uses markdown formatting for better readability and includes summaries
    */
   getSearchHistory(): string {
     return this.searchHistory
@@ -115,9 +116,9 @@ export class SystemContext {
               `### ${result.date} - ${result.title}`,
               result.url,
               result.snippet,
-              `<scrape_result>`,
-              result.scrapedContent,
-              `</scrape_result>`,
+              `<summary>`,
+              result.summary,
+              `</summary>`,
             ].join("\n\n"),
           ),
         ].join("\n\n"),

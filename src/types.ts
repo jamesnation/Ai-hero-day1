@@ -1,9 +1,8 @@
 // Simplified action type for annotations that only includes serializable data
 export type SerializableAction = {
-  type: "search" | "answer";
+  type: "answer";
   title: string;
   reasoning: string;
-  query?: string;
 };
 
 export type OurMessageAnnotation = {

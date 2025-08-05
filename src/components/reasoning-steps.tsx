@@ -51,11 +51,15 @@ export const ReasoningSteps = ({
                       </ReactMarkdown>
                     </div>
                     {annotation.action.type ===
-                      "search" && (
+                      "answer" && (
                       <div className="mt-2 flex items-center gap-2 text-sm text-gray-400">
                         <SearchIcon className="size-4" />
                         <span>
-                          {annotation.action.query}
+                          {annotation.action.title.includes("Planning") 
+                            ? "Planning research strategy..."
+                            : annotation.action.title.includes("Completed") 
+                            ? "Processing search results..."
+                            : "Ready to provide answer"}
                         </span>
                       </div>
                     )}

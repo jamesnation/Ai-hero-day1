@@ -17,8 +17,8 @@ export const testProgressIndication = async () => {
     const result = await runAgentLoop(testQuestion, (annotation: OurMessageAnnotation) => {
       console.log(`📋 Step ${annotations.length + 1}: ${annotation.action.title}`);
       console.log(`   Reasoning: ${annotation.action.reasoning}`);
-      if (annotation.action.type === "search") {
-        console.log(`   Query: ${annotation.action.query}`);
+      if (annotation.action.type === "answer") {
+        console.log(`   Action: Ready to provide answer`);
       }
       annotations.push(annotation);
     }, undefined, [], undefined); // No telemetry, conversation history, or onFinish for tests

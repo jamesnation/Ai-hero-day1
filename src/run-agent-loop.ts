@@ -1,8 +1,10 @@
 import { SystemContext } from "./system-context";
 import { getNextAction, type Action } from "./get-next-action";
+import { queryRewriter } from "./query-rewriter";
 import { searchSerper } from "./serper";
 import { bulkCrawlWebsites } from "./server/scraper";
 import { answerQuestion } from "./answer-question";
+import { summarizeURL } from "./summarize-url";
 import { streamText, type StreamTextResult, type Message, type StreamTextOnFinishCallback } from "ai";
 import { model } from "./models";
 import type { OurMessageAnnotation } from "./types";
@@ -11,31 +13,25 @@ import type { OurMessageAnnotation } from "./types";
  * Converts an Action to a SerializableAction for annotations
  */
 const convertActionToSerializable = (action: Action): OurMessageAnnotation["action"] => {
-  const base = {
+  return {
     type: action.type,
     title: action.title,
     reasoning: action.reasoning,
   };
-
-  switch (action.type) {
-    case "search":
-      return {
-        ...base,
-        query: action.query,
-      };
-    case "answer":
-      return base;
-  }
 };
 
 /**
  * Executes a search action by querying the web and automatically scraping the results
- * Combines search and scrape functionality into a single operation
+ * Combines search and scrape functionality into a single operation with summarization
  */
-const searchWeb = async (query: string) => {
-  // Search for results with fewer results (3 instead of 5) to reduce context window usage
+const searchWeb = async (
+  query: string,
+  conversationHistory: Message[] = [],
+  langfuseTraceId?: string,
+) => {
+  // Search for results with a balanced number to optimize for summarization
   const results = await searchSerper(
-    { q: query, num: 3 },
+    { q: query, num: 5 },
     new AbortController().signal,
   );
 
@@ -45,12 +41,12 @@ const searchWeb = async (query: string) => {
   // Scrape all URLs in parallel
   const scrapeResult = await bulkCrawlWebsites({ urls });
 
-  // Combine search results with scraped content
+  // Combine search results with scraped content and prepare for summarization
   const combinedResults = results.organic.map((result, index) => {
     const scrapedData = scrapeResult.results[index];
     const scrapedContent = scrapedData?.result.success 
       ? scrapedData.result.data 
-      : `Error: ${scrapedData?.result.success === false ? scrapedData.result.error : 'Unknown error'}`;
+      : `Error: ${scrapedData?.result.success === false ? scrapedData.result.error! : 'Unknown error'}`;
 
     return {
       date: (result.date ?? new Date().toISOString().split('T')[0]) as string,
@@ -61,9 +57,36 @@ const searchWeb = async (query: string) => {
     };
   });
 
+  // Summarize all URLs in parallel
+  console.log(`📝 Summarizing ${combinedResults.length} URLs...`);
+  const summaryPromises = combinedResults.map(async (result) => {
+    try {
+      const summary = await summarizeURL(
+        conversationHistory,
+        result.scrapedContent,
+        {
+          date: result.date,
+          title: result.title,
+          url: result.url,
+          snippet: result.snippet,
+        },
+        query,
+        langfuseTraceId,
+      );
+      return { ...result, summary };
+    } catch (error) {
+      console.error(`❌ Failed to summarize ${result.url}:`, error);
+      // Fallback to using scraped content as summary if summarization fails
+      return { ...result, summary: result.scrapedContent };
+    }
+  });
+
+  const resultsWithSummaries = await Promise.all(summaryPromises);
+  console.log(`✅ Successfully summarized ${resultsWithSummaries.length} URLs`);
+
   return {
     query,
-    results: combinedResults,
+    results: resultsWithSummaries,
   };
 };
 
@@ -96,9 +119,53 @@ export const runAgentLoop = async (
     while (!ctx.shouldStop()) {
       console.log(`\n📋 Step ${ctx.getCurrentStep() + 1}:`);
       
-      // We choose the next action based on the state of our system
-      const nextAction = await getNextAction(ctx, langfuseTraceId);
+      // 1. Always run the query rewriter first
+      console.log(`📝 Generating research plan and queries...`);
+      const researchPlan = await queryRewriter(ctx, langfuseTraceId);
+      console.log(`📋 Research Plan: ${researchPlan.plan}`);
+      console.log(`🔍 Generated ${researchPlan.queries.length} queries`);
       
+      // Send progress information for query rewriting
+      if (writeMessageAnnotation) {
+        writeMessageAnnotation({
+          type: "NEW_ACTION",
+          action: {
+            type: "answer",
+            title: `Planning research strategy (${researchPlan.queries.length} queries)`,
+            reasoning: `Generated research plan: ${researchPlan.plan.substring(0, 100)}...`,
+          },
+        } satisfies OurMessageAnnotation);
+      }
+      
+      // 2. Always search based on the queries
+      console.log(`🚀 Executing ${researchPlan.queries.length} searches in parallel...`);
+      const searchPromises = researchPlan.queries.map(async (query) => {
+        console.log(`🔍 Searching for: "${query}"`);
+        return await searchWeb(query, conversationHistory, langfuseTraceId);
+      });
+      
+      const searchResults = await Promise.all(searchPromises);
+      
+      // 3. Always save results to context
+      for (const result of searchResults) {
+        ctx.reportSearch(result);
+      }
+      console.log(`✅ Completed ${searchResults.length} searches with summaries`);
+      
+      // Send progress information for search completion
+      if (writeMessageAnnotation) {
+        writeMessageAnnotation({
+          type: "NEW_ACTION",
+          action: {
+            type: "answer",
+            title: `Completed ${searchResults.length} searches`,
+            reasoning: `Found and summarized ${searchResults.length} search results with relevant information.`,
+          },
+        } satisfies OurMessageAnnotation);
+      }
+      
+      // 4. Decide whether to continue by calling getNextAction
+      const nextAction = await getNextAction(ctx, langfuseTraceId);
       console.log(`🤖 LLM chose action: ${nextAction.type}`);
       
       // Send progress information back to the user if writeMessageAnnotation is provided
@@ -109,16 +176,8 @@ export const runAgentLoop = async (
         } satisfies OurMessageAnnotation);
       }
       
-      // We execute the action and update the state of our system
-      if (nextAction.type === "search") {
-        console.log(`🔍 Searching for: "${nextAction.query}"`);
-        
-        const result = await searchWeb(nextAction.query);
-        ctx.reportSearch(result);
-        
-        console.log(`✅ Found ${result.results.length} search results with scraped content`);
-        
-      } else if (nextAction.type === "answer") {
+      // Execute the action
+      if (nextAction.type === "answer") {
         console.log(`💡 Generating answer...`);
         
         // We increment the step counter before answering
