@@ -31,8 +31,9 @@ export const queryRewriterSchema = z.object({
 
 /**
  * Generates a research plan and search queries using chain-of-thought prompting
+ * Now incorporates feedback from previous evaluations to improve search strategy
  * 
- * @param context - The current system context with search history
+ * @param context - The current system context with search history and feedback
  * @param langfuseTraceId - Optional Langfuse trace ID for telemetry
  * @returns A research plan with queries
  */
@@ -41,6 +42,7 @@ export const queryRewriter = async (
   langfuseTraceId?: string,
 ): Promise<ResearchPlan> => {
   const userQuestion = context.getUserQuestion();
+  const lastFeedback = context.getLastFeedback();
   
   const result = await generateObject({
     model,
@@ -60,12 +62,19 @@ Then, develop a strategic research plan that:
 - Considers multiple angles or perspectives that might be relevant
 - Anticipates potential dead-ends or areas needing clarification
 
+IMPORTANT: If there is previous evaluation feedback available, use it to inform your strategy:
+- Address specific information gaps mentioned in the feedback
+- Refine your approach based on what was already found
+- Focus on the most promising search directions identified
+- Avoid repeating searches that didn't yield useful results
+
 Finally, translate this plan into a numbered list of 3-5 sequential search queries that:
 
 - Are specific and focused (avoid broad queries that return general information)
 - Are written in natural language without Boolean operators (no AND/OR)
 - Progress logically from foundational to specific information
 - Build upon each other in a meaningful way
+- Address any specific gaps or guidance from previous feedback
 
 Remember that initial queries can be exploratory - they help establish baseline information or verify assumptions before proceeding to more targeted searches. Each query should serve a specific purpose in your overall research plan.
 
@@ -74,7 +83,9 @@ User Question: "${userQuestion}"
 Current Context:
 ${context.getFormattedContext()}
 
-Based on the current context and the user's question, create a research plan and generate the next set of search queries.
+${lastFeedback ? `Previous Evaluation Feedback: ${lastFeedback}` : ""}
+
+Based on the current context, previous feedback (if any), and the user's question, create a research plan and generate the next set of search queries.
 `,
     experimental_telemetry: langfuseTraceId ? {
       isEnabled: true,

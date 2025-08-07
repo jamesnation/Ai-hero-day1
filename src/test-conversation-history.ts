@@ -37,8 +37,12 @@ export const testConversationHistory = async () => {
     const result = await runAgentLoop(
       followUpQuestion,
       (annotation) => {
-        console.log(`📋 Step: ${annotation.action.title}`);
-        console.log(`   Reasoning: ${annotation.action.reasoning}`);
+        if (annotation.type === "NEW_ACTION") {
+          console.log(`📋 Step: ${annotation.action.title}`);
+          console.log(`   Reasoning: ${annotation.action.reasoning}`);
+        } else if (annotation.type === "DISPLAY_SOURCES") {
+          console.log(`📋 Found ${annotation.sources.length} sources for query: "${annotation.query}"`);
+        }
       },
       undefined, // No telemetry for this test
       conversationHistory,

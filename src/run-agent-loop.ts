@@ -7,16 +7,18 @@ import { answerQuestion } from "./answer-question";
 import { summarizeURL } from "./summarize-url";
 import { streamText, type StreamTextResult, type Message, type StreamTextOnFinishCallback } from "ai";
 import { model } from "./models";
-import type { OurMessageAnnotation } from "./types";
+import type { OurMessageAnnotation, SearchSource, SerializableAction } from "./types";
+import { getFaviconUrl } from "./utils";
 
 /**
  * Converts an Action to a SerializableAction for annotations
  */
-const convertActionToSerializable = (action: Action): OurMessageAnnotation["action"] => {
+const convertActionToSerializable = (action: Action): SerializableAction => {
   return {
     type: action.type,
     title: action.title,
     reasoning: action.reasoning,
+    feedback: action.feedback, // This will be undefined when not provided, which is correct
   };
 };
 
@@ -31,15 +33,18 @@ const searchWeb = async (
 ) => {
   // Search for results with a balanced number to optimize for summarization
   const results = await searchSerper(
-    { q: query, num: 5 },
+    { q: query, num: 3 }, // Reduced from 5 to 3 for better performance
     new AbortController().signal,
   );
 
   // Extract URLs from search results
   const urls = results.organic.map((result) => result.link);
 
-  // Scrape all URLs in parallel
-  const scrapeResult = await bulkCrawlWebsites({ urls });
+  // Scrape all URLs in parallel with timeout
+  const scrapeResult = await bulkCrawlWebsites({ 
+    urls,
+    timeout: 5000, // 5 second timeout per URL
+  });
 
   // Combine search results with scraped content and prepare for summarization
   const combinedResults = results.organic.map((result, index) => {
@@ -91,6 +96,139 @@ const searchWeb = async (
 };
 
 /**
+ * Collects all search results, deduplicates them, and sends a single sources annotation
+ */
+const collectAndDisplaySources = async (
+  queries: string[],
+  conversationHistory: Message[] = [],
+  langfuseTraceId?: string,
+  writeMessageAnnotation?: (annotation: OurMessageAnnotation) => void,
+) => {
+  // Execute all searches in parallel with reduced results per query
+  console.log(`🚀 Executing ${queries.length} searches in parallel...`);
+  const searchPromises = queries.map(async (query) => {
+    console.log(`🔍 Searching for: "${query}"`);
+    return await searchSerper(
+      { q: query, num: 3 }, // Reduced from 5 to 3 results per query
+      new AbortController().signal,
+    );
+  });
+
+  const allSearchResults = await Promise.all(searchPromises);
+  
+  // Collect all organic results and deduplicate by URL
+  const allSources: SearchSource[] = [];
+  const seenUrls = new Set<string>();
+  
+  allSearchResults.forEach((searchResult, queryIndex) => {
+    searchResult.organic.forEach((result) => {
+      if (!seenUrls.has(result.link)) {
+        seenUrls.add(result.link);
+        allSources.push({
+          title: result.title,
+          url: result.link,
+          snippet: result.snippet,
+          favicon: getFaviconUrl(result.link),
+        });
+      }
+    });
+  });
+
+  // Limit to top 8 sources to improve performance
+  const limitedSources = allSources.slice(0, 8);
+  
+  // Send single annotation with limited unique sources
+  if (writeMessageAnnotation && limitedSources.length > 0) {
+    writeMessageAnnotation({
+      type: "DISPLAY_SOURCES",
+      sources: limitedSources,
+      query: `Combined results from ${queries.length} searches (showing top ${limitedSources.length})`,
+    });
+  }
+
+  console.log(`📊 Found ${allSources.length} unique sources, limiting to top ${limitedSources.length} for performance`);
+  
+  // Only process the limited sources for scraping and summarization
+  const uniqueUrls = limitedSources.map(source => source.url);
+  
+  // Scrape all unique URLs in parallel with timeout
+  const scrapeResult = await bulkCrawlWebsites({ 
+    urls: uniqueUrls,
+    timeout: 5000, // 5 second timeout per URL
+  });
+
+  // Create a map of URL to scraped content for easy lookup
+  const scrapedContentMap = new Map<string, string>();
+  scrapeResult.results.forEach((result, index) => {
+    const url = uniqueUrls[index];
+    const content = result?.result.success 
+      ? result.result.data 
+      : `Error: ${result?.result.success === false ? result.result.error! : 'Unknown error'}`;
+    scrapedContentMap.set(url!, content);
+  });
+
+  // Process each search result with its corresponding scraped content
+  const processedResults = [];
+  
+  for (const searchResult of allSearchResults) {
+    const queryIndex = allSearchResults.indexOf(searchResult);
+    const query = queries[queryIndex]!;
+    const resultsWithSummaries = [];
+    
+    // Only process results that are in our limited sources
+    for (const result of searchResult.organic) {
+      if (limitedSources.some(source => source.url === result.link)) {
+        const scrapedContent = scrapedContentMap.get(result.link) || `Error: No scraped content available`;
+        
+        // Summarize the content
+        try {
+          const summary = await summarizeURL(
+            conversationHistory,
+            scrapedContent,
+            {
+              date: (result.date ?? new Date().toISOString().split('T')[0]) as string,
+              title: result.title as string,
+              url: result.link as string,
+              snippet: result.snippet as string,
+            },
+            query,
+            langfuseTraceId,
+          );
+          
+          resultsWithSummaries.push({
+            date: (result.date ?? new Date().toISOString().split('T')[0]) as string,
+            title: result.title,
+            url: result.link,
+            snippet: result.snippet,
+            scrapedContent,
+            summary,
+          });
+        } catch (error) {
+          console.error(`❌ Failed to summarize ${result.link}:`, error);
+          resultsWithSummaries.push({
+            date: (result.date ?? new Date().toISOString().split('T')[0]) as string,
+            title: result.title,
+            url: result.link,
+            snippet: result.snippet,
+            scrapedContent,
+            summary: scrapedContent, // Fallback to scraped content
+          });
+        }
+      }
+    }
+    
+    if (resultsWithSummaries.length > 0) {
+      processedResults.push({
+        query,
+        results: resultsWithSummaries,
+      });
+    }
+  }
+
+  return processedResults;
+};
+
+/**
  * Main agent loop that orchestrates the search and answer workflow
  * Follows the pseudocode structure provided
  * 
@@ -133,18 +271,18 @@ export const runAgentLoop = async (
             type: "answer",
             title: `Planning research strategy (${researchPlan.queries.length} queries)`,
             reasoning: `Generated research plan: ${researchPlan.plan.substring(0, 100)}...`,
+            feedback: `Planning to execute ${researchPlan.queries.length} search queries to gather comprehensive information.`,
           },
         } satisfies OurMessageAnnotation);
       }
       
-      // 2. Always search based on the queries
-      console.log(`🚀 Executing ${researchPlan.queries.length} searches in parallel...`);
-      const searchPromises = researchPlan.queries.map(async (query) => {
-        console.log(`🔍 Searching for: "${query}"`);
-        return await searchWeb(query, conversationHistory, langfuseTraceId);
-      });
-      
-      const searchResults = await Promise.all(searchPromises);
+      // 2. Always search based on the queries with deduplication
+      const searchResults = await collectAndDisplaySources(
+        researchPlan.queries,
+        conversationHistory,
+        langfuseTraceId,
+        writeMessageAnnotation
+      );
       
       // 3. Always save results to context
       for (const result of searchResults) {
@@ -160,6 +298,7 @@ export const runAgentLoop = async (
             type: "answer",
             title: `Completed ${searchResults.length} searches`,
             reasoning: `Found and summarized ${searchResults.length} search results with relevant information.`,
+            feedback: `Successfully completed ${searchResults.length} searches and processed the results for evaluation.`,
           },
         } satisfies OurMessageAnnotation);
       }
@@ -167,6 +306,14 @@ export const runAgentLoop = async (
       // 4. Decide whether to continue by calling getNextAction
       const nextAction = await getNextAction(ctx, langfuseTraceId);
       console.log(`🤖 LLM chose action: ${nextAction.type}`);
+      
+      // Store the feedback from getNextAction for use in the next iteration (if provided)
+      if (nextAction.feedback) {
+        ctx.setLastFeedback(nextAction.feedback);
+        console.log(`📝 Stored evaluation feedback: ${nextAction.feedback.substring(0, 100)}...`);
+      } else {
+        console.log(`✅ No feedback needed - ready to answer the question`);
+      }
       
       // Send progress information back to the user if writeMessageAnnotation is provided
       if (writeMessageAnnotation) {

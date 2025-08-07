@@ -15,10 +15,14 @@ export const testProgressIndication = async () => {
     console.log("📝 Testing with progress annotations...");
     
     const result = await runAgentLoop(testQuestion, (annotation: OurMessageAnnotation) => {
-      console.log(`📋 Step ${annotations.length + 1}: ${annotation.action.title}`);
-      console.log(`   Reasoning: ${annotation.action.reasoning}`);
-      if (annotation.action.type === "answer") {
-        console.log(`   Action: Ready to provide answer`);
+      if (annotation.type === "NEW_ACTION") {
+        console.log(`📋 Step ${annotations.length + 1}: ${annotation.action.title}`);
+        console.log(`   Reasoning: ${annotation.action.reasoning}`);
+        if (annotation.action.type === "answer") {
+          console.log(`   Action: Ready to provide answer`);
+        }
+      } else if (annotation.type === "DISPLAY_SOURCES") {
+        console.log(`📋 Step ${annotations.length + 1}: Found ${annotation.sources.length} sources for "${annotation.query}"`);
       }
       annotations.push(annotation);
     }, undefined, [], undefined); // No telemetry, conversation history, or onFinish for tests
@@ -30,7 +34,11 @@ export const testProgressIndication = async () => {
     // Show all steps
     console.log("\n📋 All Steps:");
     annotations.forEach((annotation, index) => {
-      console.log(`   ${index + 1}. ${annotation.action.title}`);
+      if (annotation.type === "NEW_ACTION") {
+        console.log(`   ${index + 1}. ${annotation.action.title}`);
+      } else if (annotation.type === "DISPLAY_SOURCES") {
+        console.log(`   ${index + 1}. Found ${annotation.sources.length} sources for "${annotation.query}"`);
+      }
     });
     
   } catch (error) {

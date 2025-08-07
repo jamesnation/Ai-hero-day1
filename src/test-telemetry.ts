@@ -17,7 +17,11 @@ export const testTelemetry = async () => {
     const result = await runAgentLoop(
       testQuestion, 
       (annotation) => {
-        console.log(`📋 Step: ${annotation.action.title}`);
+        if (annotation.type === "NEW_ACTION") {
+          console.log(`📋 Step: ${annotation.action.title}`);
+        } else if (annotation.type === "DISPLAY_SOURCES") {
+          console.log(`📋 Found ${annotation.sources.length} sources for "${annotation.query}"`);
+        }
       }, 
       testTraceId,
       [], // No conversation history for tests

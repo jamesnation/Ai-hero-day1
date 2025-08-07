@@ -46,6 +46,11 @@ export class SystemContext {
   private searchHistory: SearchHistoryEntry[] = [];
 
   /**
+   * The most recent feedback from getNextAction
+   */
+  private lastFeedback = "";
+
+  /**
    * Constructor to initialize the context with the user question and conversation history
    */
   constructor(userQuestion: string, conversationHistory: Message[] = []) {
@@ -80,6 +85,20 @@ export class SystemContext {
    */
   reportSearch(search: SearchHistoryEntry): void {
     this.searchHistory.push(search);
+  }
+
+  /**
+   * Stores the most recent feedback from getNextAction
+   */
+  setLastFeedback(feedback?: string): void {
+    this.lastFeedback = feedback ?? "";
+  }
+
+  /**
+   * Gets the most recent feedback from getNextAction
+   */
+  getLastFeedback(): string {
+    return this.lastFeedback;
   }
 
   /**
@@ -142,6 +161,11 @@ export class SystemContext {
       "## Search History:",
       this.getSearchHistory(),
     ];
+
+    // Add feedback if available
+    if (this.lastFeedback) {
+      parts.push("", "## Previous Evaluation Feedback:", this.lastFeedback);
+    }
 
     return parts.join("\n\n");
   }

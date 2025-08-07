@@ -3,6 +3,7 @@ import { setTimeout } from "node:timers/promises";
 import robotsParser from "robots-parser";
 import TurndownService from "turndown";
 import { cacheWithRedis } from "./redis/redis";
+import { setTimeout as setTimeoutSync, clearTimeout } from "node:timers";
 
 export const DEFAULT_MAX_RETRIES = 3;
 const MIN_DELAY_MS = 500; // 0.5 seconds
@@ -41,6 +42,7 @@ export type BulkCrawlResponse = BulkCrawlSuccessResponse | BulkCrawlFailureRespo
 
 export interface CrawlOptions {
   maxRetries?: number;
+  timeout?: number; // Timeout in milliseconds
 }
 
 export interface BulkCrawlOptions extends CrawlOptions {
@@ -149,7 +151,7 @@ export const crawlWebsite = cacheWithRedis(
   async (
     options: CrawlOptions & { url: string },
   ): Promise<CrawlResponse> => {
-    const { url, maxRetries = DEFAULT_MAX_RETRIES } = options;
+    const { url, maxRetries = DEFAULT_MAX_RETRIES, timeout = 10000 } = options;
 
     // Check robots.txt before attempting to crawl
     const isAllowed = await checkRobotsTxt(url);
@@ -164,7 +166,14 @@ export const crawlWebsite = cacheWithRedis(
 
     while (attempts < maxRetries) {
       try {
-        const response = await fetch(url);
+        const controller = new AbortController();
+        const timeoutId = setTimeoutSync(() => controller.abort(), timeout);
+        
+        const response = await fetch(url, {
+          signal: controller.signal,
+        });
+        
+        clearTimeout(timeoutId);
 
         if (response.ok) {
           const html = await response.text();

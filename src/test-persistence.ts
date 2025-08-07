@@ -32,7 +32,11 @@ export const testPersistence = async () => {
         if (lastMessage && annotations) {
           console.log(`✅ Annotations found: ${annotations.length} annotations`);
           annotations.forEach((annotation: OurMessageAnnotation, index: number) => {
-            console.log(`   ${index + 1}. ${annotation.action.title}`);
+            if (annotation.type === "NEW_ACTION") {
+              console.log(`   ${index + 1}. ${annotation.action.title}`);
+            } else if (annotation.type === "DISPLAY_SOURCES") {
+              console.log(`   ${index + 1}. Found ${annotation.sources.length} sources for "${annotation.query}"`);
+            }
           });
         } else {
           console.log("❌ No annotations found in response");
@@ -40,7 +44,11 @@ export const testPersistence = async () => {
       },
       telemetry: { isEnabled: false },
       writeMessageAnnotation: (annotation) => {
-        console.log(`📋 Annotation: ${annotation.action.title}`);
+        if (annotation.type === "NEW_ACTION") {
+          console.log(`📋 Annotation: ${annotation.action.title}`);
+        } else if (annotation.type === "DISPLAY_SOURCES") {
+          console.log(`📋 Found ${annotation.sources.length} sources for "${annotation.query}"`);
+        }
       },
     });
     
