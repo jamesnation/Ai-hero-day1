@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { SearchIcon, MessageSquareIcon, GlobeIcon } from "lucide-react";
+import { SearchIcon, MessageSquareIcon, GlobeIcon, HashIcon } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 import type { OurMessageAnnotation } from "../types";
 import { SourcesDisplay } from "./sources-display";
@@ -127,6 +127,15 @@ export const ReasoningSteps = ({
                       />
                     </div>
                   )}
+                </div>
+              </li>
+            );
+          } else if (annotation.type === "TOKEN_USAGE") {
+            return (
+              <li key={index} className="relative">
+                <div className="flex items-center gap-2 px-2 py-1 text-sm text-gray-400">
+                  <HashIcon className="size-4" />
+                  <span>Tokens used: {annotation.totalTokens.toLocaleString()}</span>
                 </div>
               </li>
             );

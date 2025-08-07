@@ -53,7 +53,7 @@ export const answerQuestion = async (
     context.getFormattedContext(),
   ].join("\n");
 
-  return streamText({
+  const result = streamText({
     model,
     messages: [{ role: 'user', content: userQuestion }],
     system: systemPrompt,
@@ -67,4 +67,11 @@ export const answerQuestion = async (
       },
     } : undefined,
   });
+
+  // Report token usage when available
+  result.usage.then((usage) => {
+    context.reportUsage(isFinal ? "answer-question-final" : "answer-question", usage);
+  });
+
+  return result;
 }; 

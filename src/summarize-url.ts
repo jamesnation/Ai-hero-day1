@@ -2,6 +2,7 @@ import { generateText } from "ai";
 import type { Message } from "ai";
 import { summarizationModel } from "./models";
 import { cacheWithRedis } from "./server/redis/redis";
+import type { SystemContext } from "./system-context";
 
 /**
  * Interface for the metadata from search results
@@ -29,6 +30,7 @@ const summarizeURLInternal = async (
   metadata: SearchMetadata,
   query: string,
   langfuseTraceId?: string,
+  context?: SystemContext,
 ): Promise<string> => {
   // Format conversation history for context
   const conversationContext = conversationHistory.length > 0
@@ -84,6 +86,11 @@ Please provide a comprehensive synthesis of the above content as it relates to t
       },
     } : undefined,
   });
+
+  // Report token usage if context is provided
+  if (context && result.usage) {
+    context.reportUsage("summarize-url", result.usage);
+  }
 
   return result.text;
 };

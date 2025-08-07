@@ -102,6 +102,11 @@ Choose the most appropriate action and provide the required parameters.
     } : undefined,
   });
 
+  // Report token usage
+  if (result.usage) {
+    context.reportUsage("get-next-action", result.usage);
+  }
+
   // Validate the result and return the appropriate action type
   const action = result.object;
   

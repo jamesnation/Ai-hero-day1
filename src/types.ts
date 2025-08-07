@@ -24,4 +24,8 @@ export type OurMessageAnnotation =
       type: "DISPLAY_SOURCES";
       sources: SearchSource[];
       query: string;
+    }
+  | {
+      type: "TOKEN_USAGE";
+      totalTokens: number;
     }; 

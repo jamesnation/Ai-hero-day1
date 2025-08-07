@@ -77,6 +77,7 @@ const searchWeb = async (
         },
         query,
         langfuseTraceId,
+        undefined, // No context available in this function
       );
       return { ...result, summary };
     } catch (error) {
@@ -103,6 +104,7 @@ const collectAndDisplaySources = async (
   conversationHistory: Message[] = [],
   langfuseTraceId?: string,
   writeMessageAnnotation?: (annotation: OurMessageAnnotation) => void,
+  context?: SystemContext,
 ) => {
   // Execute all searches in parallel with reduced results per query
   console.log(`🚀 Executing ${queries.length} searches in parallel...`);
@@ -193,6 +195,7 @@ const collectAndDisplaySources = async (
             },
             query,
             langfuseTraceId,
+            context, // Pass the system context for usage tracking
           );
           
           resultsWithSummaries.push({
@@ -281,7 +284,8 @@ export const runAgentLoop = async (
         researchPlan.queries,
         conversationHistory,
         langfuseTraceId,
-        writeMessageAnnotation
+        writeMessageAnnotation,
+        ctx // Pass the system context for usage tracking
       );
       
       // 3. Always save results to context
@@ -330,6 +334,15 @@ export const runAgentLoop = async (
         // We increment the step counter before answering
         ctx.incrementStep();
         
+        // Send token usage annotation before returning the answer
+        if (writeMessageAnnotation) {
+          const totalTokens = ctx.getTotalTokenUsage();
+          writeMessageAnnotation({
+            type: "TOKEN_USAGE",
+            totalTokens,
+          });
+        }
+        
         // Return the answer as a stream
         return await answerQuestion(ctx, { isFinal: false }, langfuseTraceId, onFinish);
       }
@@ -341,6 +354,15 @@ export const runAgentLoop = async (
     // If we've taken 10 actions and still don't have an answer,
     // we ask the LLM to give its best attempt at an answer
     console.log(`⚠️ Reached step limit, generating final answer...`);
+    
+    // Send token usage annotation before returning the final answer
+    if (writeMessageAnnotation) {
+      const totalTokens = ctx.getTotalTokenUsage();
+      writeMessageAnnotation({
+        type: "TOKEN_USAGE",
+        totalTokens,
+      });
+    }
     
     return await answerQuestion(ctx, { isFinal: true }, langfuseTraceId, onFinish);
     

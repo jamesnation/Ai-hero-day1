@@ -96,5 +96,10 @@ Based on the current context, previous feedback (if any), and the user's questio
     } : undefined,
   });
 
+  // Report token usage
+  if (result.usage) {
+    context.reportUsage("query-rewriter", result.usage);
+  }
+
   return result.object;
 }; 

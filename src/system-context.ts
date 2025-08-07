@@ -1,6 +1,16 @@
 import type { Message } from "ai";
 
 /**
+ * Represents token usage information
+ */
+export interface TokenUsage {
+  promptTokens: number;
+  completionTokens: number;
+  totalTokens: number;
+  source: string; // Description of where the usage came from
+}
+
+/**
  * Represents a search result with scraped content and summary
  */
 type SearchResult = {
@@ -51,6 +61,11 @@ export class SystemContext {
   private lastFeedback = "";
 
   /**
+   * The history of token usage across all LLM calls
+   */
+  private tokenUsage: TokenUsage[] = [];
+
+  /**
    * Constructor to initialize the context with the user question and conversation history
    */
   constructor(userQuestion: string, conversationHistory: Message[] = []) {
@@ -99,6 +114,32 @@ export class SystemContext {
    */
   getLastFeedback(): string {
     return this.lastFeedback;
+  }
+
+  /**
+   * Reports token usage from an LLM call
+   */
+  reportUsage(source: string, usage: { promptTokens: number; completionTokens: number; totalTokens: number }): void {
+    this.tokenUsage.push({
+      promptTokens: usage.promptTokens,
+      completionTokens: usage.completionTokens,
+      totalTokens: usage.totalTokens,
+      source,
+    });
+  }
+
+  /**
+   * Gets the total token usage across all LLM calls
+   */
+  getTotalTokenUsage(): number {
+    return this.tokenUsage.reduce((total, usage) => total + usage.totalTokens, 0);
+  }
+
+  /**
+   * Gets the detailed token usage history
+   */
+  getTokenUsageHistory(): TokenUsage[] {
+    return [...this.tokenUsage];
   }
 
   /**
